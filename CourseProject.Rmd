@@ -1,0 +1,89 @@
+---
+title: "Regression Models Course Project"
+author: "Danielle Toutoungi"
+date: "15 November 2015"
+output: html_document
+---
+### Analysis of the effect of manual vs automatic transmission on car fuel consumption
+```{r setup, cache = F, echo = F, message = F, warning = F, tidy = F, results='hide'}
+# make this an external chunk that can be included in any file
+#options(width = 100)
+opts_chunk$set(message = F, error = F, warning = F, comment = NA, fig.align = 'center')
+opts_chunk$set(dpi = 100, tidy = F, cache.path = '.cache/', fig.path ='fig/')
+opts_chunk$set(fig.width=5, fig.height=4)
+#options(xtable.type = 'html')
+require(ggplot2)
+data(mtcars)
+```
+
+#### Executive Summary
+The aim of this analysis is to determine whether manual or automatic transmission provides better fuel consumption (i.e. more mpg), based on the mtcars dataset. I have investigated several linear models in order to  determine whether the effect of transmission type is significant, and if so, which type produces higher mpg. The conclusion is that if mpg is modelled as a function of car weight, car quarter mile time and transmission type, that manual transmission cars tend to have better fuel consumption.
+
+#### Exploratory Analysis
+The data set includes 11 variables: `r names(mtcars)`. The outcome variable is mpg. The other variables are possible predictor variables. Transmission type is a two factor variable labelled am, where 0=automatic and 1=manual. As a starting point, consider a simple model of mpg against am alone.
+```{r}
+c1<-summary(fit1<-lm(mpg ~ am, data=mtcars))$coef; c1
+```
+
+The Pr coefficient for am is `r format(c1[2,4], digits=3)`, so at the P=0.05 significance level, this might imply transmission type does strongly affect mpg. (Residual plot for this model shown in Appendix, Fig 1). However, consider Fig 2 in the appendix: mpg plotted against wt. This plot shows that in this dataset, manual cars tend to be lighter than automatic cars. In other words, wt is a probable confounding variable in the simple model above. So let's include this variable in the model too: 
+
+```{r}
+c2<-summary(fit2<-lm(mpg ~ am + wt, data=mtcars))$coef; c2
+```
+
+Now with wt included in the model, the estimate of the influence of am on mpg has dropped to `r format(c2[2,1],digits=3)` with a P value of `r format(c2[2,4], digits=3)`, which is no longer significant at the P=0.05 level. Residuals for this model are also shown in the appendix (Fig 3). In this case the residual plot shows there are certain outlier points (Chrysler Imperial, Fiat128, Toyota Corolla) that seem to be affecting the distribution. Examining the dataset more closely, we can compare these cars with others that have similar mpg, wt and the same am level but lower residuals:
+
+```{r, echo=FALSE}
+mtcars[c("Honda Civic","Lotus Europa"),]
+mtcars[c("Chrysler Imperial","Duster 360"),]
+```
+Many of the other variables are similar too. Those that seem to differ in both examples, perhaps indicating some influence on mpg, are disp and qsec. Let us explore the effect of adding these into the models.
+```{r}
+summary(fit3a<-lm(mpg ~ am + wt + disp, data=mtcars))$coef
+summary(fit3b<-lm(mpg ~ am + wt + qsec, data=mtcars))$coef
+a1<-anova(fit1,fit2,fit3a)
+a2<-anova(fit1,fit2,fit3b)
+```
+Looking at the P values for the anova tests above allows us to assess whether the extra variables have a significant effect. Both models support the importance of adding wt to the model (P=`r format(a1[2,6],digits=3)`). From model 3a, the addition of disp does not seem to be strongly significant (P=`r format(a1[3,6],digits=3)`), wheras from model 3b, the addition of qsec is much more significant (P=`r format(a2[3,6],digits=3)`). Residuals for model 3b are shown in the appendix (Fig 4). The outliers have perhaps been brought closer to the rest of the residuals and the general distribution shows no strong pattern. 
+
+Rearranging the models slightly to observe the effect of am specifically:
+```{r}
+fit3b<-lm(mpg ~ wt + qsec + am, data=mtcars); sumCoef<-summary(fit3b)$coef
+fit4<-lm(mpg ~ wt + qsec, data=mtcars)
+a<-anova(fit4,fit3b); a
+```
+The addition of am as a variable is significant (P=`r format(a$Pr[2],digits=3)`), supporting the hypothesis that transmission type does affect mpg.  The estimate of the beta coefficient for this variable in model 3b is `r format(sumCoef["am",1],digits=3)`. We can calculate a confidence interval on the beta value for am, as follows:
+```{r}
+ci<-sumCoef[4,1]+c(-1,1)*qt(0.975,df=fit3b$df)*sumCoef[4,2]; ci
+```
+The estimate is positive and the 95% confidence interval excludes 0, so the evidence supports the hypothesis that transmission type does affect mpg, and indicates that a higher am value (i.e. manual transmssion) produces a higher mpg value, i.e. improved fuel consumption. A manual car may achieve ~0.05 - 5.83 mpg higher than an automatic car of the same weight and qsec performance. 
+
+
+
+
+### Appendix - Exploratory Plots
+Fig 1: Residual plot for model 1
+
+```{r, echo=FALSE}
+plot(fit1,which=1)
+```
+
+Fig 2: Fuel consumption vs car weight, with transmission type shown by colour (am levels: 0=automatic, 1=manual)
+
+```{r, echo=FALSE, fig.width=5, fig.height=4 }
+g1<-ggplot(mtcars,aes(x=wt,y=mpg,colour=factor(am)))
+g1<-g1 + geom_point(size=6,colour="black") + geom_point(size = 4)
+g1<-g1 + xlab("weight (1000lb)") + ylab("fuel consumption (mpg)") 
+g1
+```
+
+
+Fig 3: Residual plot for model 2
+```{r, echo=FALSE}
+plot(fit2,which=1)
+```
+
+Fig 4: Residual plot for model 3b (preferred fit)
+```{r, echo=FALSE}
+plot(fit3b,which=1)
+```
